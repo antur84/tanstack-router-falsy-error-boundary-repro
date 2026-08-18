@@ -8,6 +8,12 @@ errorComponent.
 
 Minimal TanStack Start app (based on the `start-bare` example).
 
+There is also an [`organic-1.170.15` branch](../../tree/organic-1.170.15) with
+**no throw statements in app code at all**: pinned to react-router 1.170.15
+(pre-#7805), a single click on the documented `router.invalidate({ forcePending:
+true })` API makes the library itself execute `throw undefined` and blank the
+page — the full production chain from #7753.
+
 ## Run
 
 ```
