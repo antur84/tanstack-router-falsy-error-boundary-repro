@@ -1,0 +1,185 @@
+diff --git a/examples/react/start-bare/src/routeTree.gen.ts b/examples/react/start-bare/src/routeTree.gen.ts
+index d89758e..e5823d1 100644
+--- a/examples/react/start-bare/src/routeTree.gen.ts
++++ b/examples/react/start-bare/src/routeTree.gen.ts
+@@ -11,6 +11,8 @@
+ import { Route as rootRouteImport } from './routes/__root'
+ import { Route as IndexRouteImport } from './routes/index'
+ import { Route as AboutRouteImport } from './routes/about'
++import { Route as AwaitRejectRouteImport } from './routes/await-reject'
++import { Route as LoaderRejectRouteImport } from './routes/loader-reject'
+ 
+ const IndexRoute = IndexRouteImport.update({
+   id: '/',
+@@ -22,31 +24,49 @@ const AboutRoute = AboutRouteImport.update({
+   path: '/about',
+   getParentRoute: () => rootRouteImport,
+ } as any)
++const AwaitRejectRoute = AwaitRejectRouteImport.update({
++  id: '/await-reject',
++  path: '/await-reject',
++  getParentRoute: () => rootRouteImport,
++} as any)
++const LoaderRejectRoute = LoaderRejectRouteImport.update({
++  id: '/loader-reject',
++  path: '/loader-reject',
++  getParentRoute: () => rootRouteImport,
++} as any)
+ 
+ export interface FileRoutesByFullPath {
+   '/': typeof IndexRoute
+   '/about': typeof AboutRoute
++  '/await-reject': typeof AwaitRejectRoute
++  '/loader-reject': typeof LoaderRejectRoute
+ }
+ export interface FileRoutesByTo {
+   '/': typeof IndexRoute
+   '/about': typeof AboutRoute
++  '/await-reject': typeof AwaitRejectRoute
++  '/loader-reject': typeof LoaderRejectRoute
+ }
+ export interface FileRoutesById {
+   __root__: typeof rootRouteImport
+   '/': typeof IndexRoute
+   '/about': typeof AboutRoute
++  '/await-reject': typeof AwaitRejectRoute
++  '/loader-reject': typeof LoaderRejectRoute
+ }
+ export interface FileRouteTypes {
+   fileRoutesByFullPath: FileRoutesByFullPath
+-  fullPaths: '/' | '/about'
++  fullPaths: '/' | '/about' | '/await-reject' | '/loader-reject'
+   fileRoutesByTo: FileRoutesByTo
+-  to: '/' | '/about'
+-  id: '__root__' | '/' | '/about'
++  to: '/' | '/about' | '/await-reject' | '/loader-reject'
++  id: '__root__' | '/' | '/about' | '/await-reject' | '/loader-reject'
+   fileRoutesById: FileRoutesById
+ }
+ export interface RootRouteChildren {
+   IndexRoute: typeof IndexRoute
+   AboutRoute: typeof AboutRoute
++  AwaitRejectRoute: typeof AwaitRejectRoute
++  LoaderRejectRoute: typeof LoaderRejectRoute
+ }
+ 
+ declare module '@tanstack/react-router' {
+@@ -65,12 +85,28 @@ declare module '@tanstack/react-router' {
+       preLoaderRoute: typeof AboutRouteImport
+       parentRoute: typeof rootRouteImport
+     }
++    '/await-reject': {
++      id: '/await-reject'
++      path: '/await-reject'
++      fullPath: '/await-reject'
++      preLoaderRoute: typeof AwaitRejectRouteImport
++      parentRoute: typeof rootRouteImport
++    }
++    '/loader-reject': {
++      id: '/loader-reject'
++      path: '/loader-reject'
++      fullPath: '/loader-reject'
++      preLoaderRoute: typeof LoaderRejectRouteImport
++      parentRoute: typeof rootRouteImport
++    }
+   }
+ }
+ 
+ const rootRouteChildren: RootRouteChildren = {
+   IndexRoute: IndexRoute,
+   AboutRoute: AboutRoute,
++  AwaitRejectRoute: AwaitRejectRoute,
++  LoaderRejectRoute: LoaderRejectRoute,
+ }
+ export const routeTree = rootRouteImport
+   ._addFileChildren(rootRouteChildren)
+diff --git a/examples/react/start-bare/src/routes/__root.tsx b/examples/react/start-bare/src/routes/__root.tsx
+index 4b83d39..fe35224 100644
+--- a/examples/react/start-bare/src/routes/__root.tsx
++++ b/examples/react/start-bare/src/routes/__root.tsx
+@@ -1,6 +1,5 @@
+ /// <reference types="vite/client" />
+ import * as React from 'react'
+-import { TanStackRouterDevtools } from '@tanstack/react-router-devtools'
+ import {
+   HeadContent,
+   Link,
+@@ -14,6 +13,9 @@ export const Route = createRootRoute({
+   head: () => ({
+     links: [{ rel: 'stylesheet', href: appCss }],
+   }),
++  errorComponent: ({ error }) => (
++    <div data-testid="route-error">caught: {String(error)}</div>
++  ),
+   component: RootComponent,
+ })
+ 
+@@ -38,7 +40,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
+         </div>
+ 
+         {children}
+-        <TanStackRouterDevtools position="bottom-right" />
+         <Scripts />
+       </body>
+     </html>
+diff --git a/examples/react/start-bare/src/routes/await-reject.tsx b/examples/react/start-bare/src/routes/await-reject.tsx
+new file mode 100644
+index 0000000..5c5dc07
+--- /dev/null
++++ b/examples/react/start-bare/src/routes/await-reject.tsx
+@@ -0,0 +1,15 @@
++import { Await, createFileRoute } from '@tanstack/react-router'
++
++export const Route = createFileRoute('/await-reject')({
++  loader: () => ({ deferred: Promise.reject() }),
++  component: AwaitReject,
++})
++
++function AwaitReject() {
++  const { deferred } = Route.useLoaderData()
++  return (
++    <Await promise={deferred} fallback={<div>waiting</div>}>
++      {() => <div>resolved</div>}
++    </Await>
++  )
++}
+diff --git a/examples/react/start-bare/src/routes/index.tsx b/examples/react/start-bare/src/routes/index.tsx
+index 0383294..11b004a 100644
+--- a/examples/react/start-bare/src/routes/index.tsx
++++ b/examples/react/start-bare/src/routes/index.tsx
+@@ -1,4 +1,5 @@
+-import { createFileRoute } from '@tanstack/react-router'
++import { Link, createFileRoute } from '@tanstack/react-router'
++
+ export const Route = createFileRoute('/')({
+   component: RouteComponent,
+ })
+@@ -6,7 +7,15 @@ export const Route = createFileRoute('/')({
+ function RouteComponent() {
+   return (
+     <main>
+-      <h1>Hello world!</h1>
++      <h1>Throw-crash hunt</h1>
++      <ul>
++        <li>
++          <Link to="/loader-reject">loader bare Promise.reject()</Link>
++        </li>
++        <li>
++          <Link to="/await-reject">deferred bare Promise.reject() + Await</Link>
++        </li>
++      </ul>
+     </main>
+   )
+ }
+diff --git a/examples/react/start-bare/src/routes/loader-reject.tsx b/examples/react/start-bare/src/routes/loader-reject.tsx
+new file mode 100644
+index 0000000..10c8669
+--- /dev/null
++++ b/examples/react/start-bare/src/routes/loader-reject.tsx
+@@ -0,0 +1,6 @@
++import { createFileRoute } from '@tanstack/react-router'
++
++export const Route = createFileRoute('/loader-reject')({
++  loader: () => Promise.reject(),
++  component: () => <div>loaded</div>,
++})
