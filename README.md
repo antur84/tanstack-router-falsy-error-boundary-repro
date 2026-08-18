@@ -1,12 +1,12 @@
-# TanStack Start repro: thrown falsy values bypass the route errorComponent
+# Organic repro: the router throws `undefined` by itself (react-router 1.170.15)
 
-TanStack/router#8098 — a route component throwing a falsy value (`undefined`,
-`null`, `0`, `''`) is caught by `CatchBoundary` but fails its truthiness gate,
-so the boundary re-renders the crashing children and React escalates to an
-uncaught root error: the app unmounts to a blank page instead of rendering the
-errorComponent.
+Branch companion to the main-branch repro for TanStack/router#8098. The main
+branch shows the CatchBoundary half with an explicit `throw undefined`; this
+branch shows the whole chain **with no throw statements in app code at all** —
+the library produces the falsy throw on its own.
 
-Minimal TanStack Start app (based on the `start-bare` example).
+Pinned to `@tanstack/react-router` 1.170.15 / `@tanstack/router-core` 1.171.13
+(pre-#7805, the versions where the internal throw-site existed — see #7753).
 
 ## Run
 
@@ -15,29 +15,36 @@ pnpm install
 pnpm dev
 ```
 
-Open http://localhost:3000 and click the two links:
+Open http://localhost:3000, wait for the route to load, then click the button.
 
-- **throw new Error('real failure')** — works: an error UI renders.
-- **throw undefined** — bug: the page goes completely blank (React unmounts
-  the root) and the console shows an uncaught error whose value is literally
-  `undefined`.
-
-The bug is client-side (`CatchBoundary`), so use the links (client-side
-navigation) rather than loading `/boom?value=undefined` directly.
-
-Confirmed with `@tanstack/react-router` 1.170.29, `@tanstack/react-start`
-1.168.46, react 19.
-
-## Where it goes wrong
-
-`packages/react-router/src/CatchBoundary.tsx`:
+The button calls a single documented public API:
 
 ```js
-static getDerivedStateFromError(error) { return { error } }
-// render():
-if (error) { /* render errorComponent */ }
-return this.props.children
+router.invalidate({ forcePending: true })
 ```
 
-`getDerivedStateFromError` stores the thrown `undefined`, `if (error)` is
-false, the children re-crash, and React promotes the error to the root.
+What happens, step by step:
+
+1. `invalidate({ forcePending: true })` synchronously flips the settled match
+   back to `status: 'pending'` in the store.
+2. The store update re-renders `MatchInner`, which sees `pending` and runs
+   `throw getMatchPromise(match, 'loadPromise')` — the Suspense "throw a
+   promise" idiom.
+3. But the match already settled, and the loader pipeline cleared
+   `_nonReactive.loadPromise = void 0` on settle. The lookup returns
+   `undefined`, so the library executes `throw undefined`.
+4. `CatchBoundary` catches it, stores it — and its `if (error)` truthiness
+   gate is false, so it re-renders the crashing children. React sees a boundary
+   failing identically on retry and escalates to an uncaught root error.
+5. The root unmounts: **blank page**, console shows an uncaught error whose
+   value is literally `undefined`.
+
+The same end state occurs in production without `forcePending`, via a timing
+race: an async `beforeLoad` throwing `redirect()` can leave a component
+rendering a stale `pending`/`redirected` snapshot after the promise was
+cleared (#7753). `forcePending` just makes the identical internal state
+reachable deterministically, in one click.
+
+The internal throw-site was removed by the #7805 rewrite (≥1.170.29), but the
+CatchBoundary gate that turns any such throw into a blank page is still
+present on latest — that's what #8098 / the main branch of this repo is about.

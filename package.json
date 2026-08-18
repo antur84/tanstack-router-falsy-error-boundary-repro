@@ -1,5 +1,5 @@
 {
-  "name": "tanstack-start-falsy-error-boundary-repro",
+  "name": "tanstack-start-organic-throw-undefined-repro",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -10,8 +10,8 @@
     "start": "pnpx srvx --prod -s ../client dist/server/server.js"
   },
   "dependencies": {
-    "@tanstack/react-router": "^1.170.29",
-    "@tanstack/react-start": "^1.168.46",
+    "@tanstack/react-router": "1.170.15",
+    "@tanstack/react-start": "1.168.25",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -23,5 +23,11 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "typescript": "npm:@typescript/typescript6@^6.0.2",
     "vite": "^8.0.14"
+  },
+  "pnpm": {
+    "overrides": {
+      "@tanstack/react-router": "1.170.15",
+      "@tanstack/router-core": "1.171.13"
+    }
   }
 }

@@ -1,29 +1,34 @@
-import { Link, createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useRouter } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
+  loader: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    return { loadedAt: Date.now() }
+  },
   component: Home,
 })
 
 function Home() {
+  const router = useRouter()
+  const { loadedAt } = Route.useLoaderData()
   return (
     <div style={{ padding: 16 }}>
-      <h1>Repro: thrown falsy values bypass the route errorComponent</h1>
+      <h1>Organic repro: the router throws undefined by itself</h1>
       <p>
-        Both links navigate to a route whose component throws during render.
-        Expected: the root route&apos;s errorComponent renders for both.
+        This app contains no throw statements. The route loaded fine (at{' '}
+        {new Date(loadedAt).toLocaleTimeString()}). Clicking the button calls
+        the documented public API <code>router.invalidate(&#123; forcePending: true &#125;)</code>:
+        the match flips back to <code>pending</code>, but its already-settled
+        <code> loadPromise</code> was cleared by the loader pipeline — so
+        MatchInner executes <code>throw getMatchPromise(match, 'loadPromise')</code>,
+        which is <code>throw undefined</code>.
       </p>
-      <ul>
-        <li>
-          <Link to="/boom" search={{ value: 'error' }}>
-            throw new Error(&apos;real failure&apos;) — works: error UI renders
-          </Link>
-        </li>
-        <li>
-          <Link to="/boom" search={{ value: 'undefined' }}>
-            throw undefined — bug: blank page, uncaught error in console
-          </Link>
-        </li>
-      </ul>
+      <button
+        type="button"
+        onClick={() => router.invalidate({ forcePending: true })}
+      >
+        router.invalidate(&#123; forcePending: true &#125;)
+      </button>
     </div>
   )
 }
