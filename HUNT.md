@@ -20,10 +20,20 @@ Open the app and click the two links.
 
 ```tsx
 export const Route = createFileRoute('/loader-reject')({
-  loader: () => Promise.reject(),   // ordinary app code, no throw statements
+  loader: () => Promise.reject(),   // stand-in for a reason-less rejection, see below
   component: () => <div>loaded</div>,
 })
 ```
+
+A literal bare `Promise.reject()` is lint-discouraged (`prefer-promise-reject-errors`),
+so treat the line above as the minimal stand-in for the ways falsy rejections
+reach loaders in practice: cancellation guards that reject with nothing on
+purpose (`if (superseded) return Promise.reject()` behind a swallow-all catch),
+promisified callback APIs whose errback fires with no argument, SDKs that
+strip rejection reasons, and conditionally-undefined reasons like
+`reject(err.cause)` / `throw response.error` that are correct in every tested
+path. An `async` loader can't produce this itself — it propagates it from the
+layers below.
 
 Click the link → **blank page**, console shows uncaught `undefined`. The root
 route's `errorComponent` never renders.
@@ -72,9 +82,13 @@ rethrows the raw rejection reason likewise) → same CatchBoundary escalation.
 
 ## Takeaway
 
-Two independent, ordinary userland patterns (`Promise.reject()` with no
-reason — common in cancel paths and `.catch(reject)` chains) produce
-library-thrown `undefined` on current main. Hardening `CatchBoundary` (#8099)
-converts every variant — present and future — from a blank page into the
-route's `errorComponent`; normalizing falsy reasons in `normalize()` would
-additionally give those errors a useful message.
+Whatever one thinks of reason-less rejections as an input — they are reachable
+from ordinary failure paths even in codebases that lint against the literal
+form — the framework's response is the issue: a silent whole-app unmount and
+an undebuggable `undefined` report, instead of the route's `errorComponent`.
+Error boundaries exist precisely for the values nobody planned for, and
+`normalize()` already concedes the philosophy by defensively wrapping thrown
+promises. Hardening `CatchBoundary` (#8099) converts every variant — present
+and future — from a blank page into the route's `errorComponent`; normalizing
+falsy reasons in `normalize()` would additionally give those errors a useful
+message.
